@@ -24,7 +24,7 @@
 - No version is released without the researcher's approval.
 
 ## Models and status
-- **Gemini 3.1 Pro** for deep-reasoning lanes, **Gemini 3.8 Flash** for mechanical lanes, **Gemini Notebook** for literature. A second-family verifier is available and switched off.
+- **Gemini Pro latest** (today Gemini 3.1 Pro) for deep-reasoning lanes and **Gemini Flash latest** (today Gemini 3.8 Flash) for mechanical lanes. Both names move to Google's newest model on release, so a new Gemini needs no edit. **Gemini Notebook** for literature. A second-family verifier is available and switched off.
 - ✅ marks parts that ran on the 7EMP manuscript (versions v22 to v35, on Claude models). 🔷 marks parts that are new and set up for the Gemini pilot. The full loop has not yet run end to end on Gemini.
 
 ## Reading the canvas
