@@ -451,15 +451,22 @@ async function poll() {
   try { const r = await fetch('aeri-office-status', { cache: 'no-store' }); if (!r.ok) throw new Error(r.status); s = await r.json(); }
   catch (e) { s = { live: false, reason: 'The status link did not answer. Check that the AERI Office workflow is active.' }; }
   liveEl.hidden = false;
-  if (!s.live) { isLive = false; liveEl.className = 'chip idle'; liveEl.textContent = 'Not following a run'; modeEl.textContent = s.reason + ' The step player shows a walk-through.'; return; }
+  if (!s.live) {
+    isLive = false; liveEl.className = 'chip idle'; liveEl.textContent = 'Walk-through';
+    modeEl.textContent = (/API key/.test(s.reason || '') ? 'Live run tracking is off: it needs an n8n API key (not part of the n8n free trial).' : s.reason) + ' The step player shows a walk-through.';
+    return false;
+  }
   if (!isLive && playing) playBtn.click();
   isLive = true;
   const label = { waiting: 'Live · waiting for the researcher', running: 'Live · running', success: 'Live · last run finished', error: 'Live · last run stopped with an error' }[s.status] || 'Live · ' + s.status;
   liveEl.className = 'chip' + (s.status === 'waiting' ? ' wait' : ''); liveEl.textContent = label;
   modeEl.textContent = 'Following the real n8n run. Current node: ' + s.node + '.';
   if (s.step !== step) go(s.step);
+  return true;
 }
-if (served) { poll(); setInterval(poll, 5000); }
+// every status check is one n8n execution: ask once, keep asking (every 20 s, only while the tab is visible) only if a run can be followed
+async function follow() { if (document.visibilityState === 'visible' && await poll()) setTimeout(follow, 20000); else if (isLive) setTimeout(follow, 20000); }
+if (served) follow();
 const h0 = location.hash.slice(1); if (cards[h0]) select(h0); else if (h0 === 'readme') readme();
 requestAnimationFrame(frame);
 if (!reduce) setTimeout(() => { if (!playing && !isLive) playBtn.click(); }, 1800);
