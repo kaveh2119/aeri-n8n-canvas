@@ -1,0 +1,467 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0"><title>AERI Research Office</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: a night-time isometric office (WebGL) with floating department cards, a detail rail on the right,
+   and a step player along the bottom that walks one manuscript version through the rooms. Single dark look by choice. */
+:root {
+  color-scheme: dark;
+  --ink: #0b1019;          /* floor and page */
+  --panel: #121a27;        /* cards and rail */
+  --line: #24314a;         /* hairlines */
+  --text: #e9edf4;
+  --muted: #8d9ab0;
+  --gold: #fdb719;         /* Mizzou gold: the researcher, and focus */
+  --ok: #4fd39a;
+  --off: #5b6578;
+  --display: 'Newsreader', Georgia, 'Times New Roman', serif;
+  --body: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', Consolas, monospace;
+}
+html, body { height: 100%; }
+body { background: var(--ink); color: var(--text); font-family: var(--body); font-size: 14px; }
+#app { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr auto; height: 100%; min-height: 640px; padding-inline: 16px; padding-block: 10px; box-sizing: border-box; gap: 10px; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 28px; }
+header h1 { font-family: var(--display); font-weight: 400; font-size: 30px; letter-spacing: .5px; margin: 0; white-space: nowrap; }
+header h1 small { font-family: var(--mono); font-size: 12px; color: var(--muted); letter-spacing: 1.5px; margin-left: 8px; }
+.conn { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 11px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.conn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); display: inline-block; }
+.chip { border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; color: var(--text); letter-spacing: 1px; font-size: 11px; background: var(--panel); white-space: nowrap; }
+.note { margin-left: auto; font-size: 11px; color: var(--muted); }
+#live { border-color: var(--ok); color: var(--ok); }
+.readbtn { border: 1px solid var(--gold); background: var(--gold); color: #1b1404; border-radius: 999px; padding: 6px 16px; font: inherit; font-weight: 600; font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase; cursor: pointer; }
+.guide h3 { font-family: var(--display); font-weight: 400; font-size: 19px; margin: 18px 0 6px; }
+.guide p, .guide li { color: #c4ccda; line-height: 1.55; font-size: 13.5px; }
+.guide ol, .guide ul { padding-left: 20px; margin: 6px 0; display: grid; gap: 5px; }
+.guide strong { color: var(--text); font-weight: 600; }
+.guide code { font-family: var(--mono); font-size: 12px; background: var(--ink); padding: 1px 5px; border-radius: 4px; word-break: break-all; }
+#live.wait { border-color: var(--gold); color: var(--gold); }
+#live.idle { border-color: var(--line); color: var(--muted); }
+main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 12px; min-height: 0; }
+#stage { position: relative; border: 1px solid var(--line); border-radius: 18px; overflow: hidden; contain: paint; min-height: 420px; background: radial-gradient(ellipse at 50% 40%, #142036 0%, var(--ink) 70%); }
+#stage canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+#labels { position: absolute; inset: 0; pointer-events: none; }
+.card { position: absolute; transform: translate(-50%, -100%); background: rgba(14, 20, 31, .86); border: 1px solid var(--line); border-radius: 12px; padding: 7px 11px 8px; min-width: 120px;
+        pointer-events: auto; cursor: pointer; backdrop-filter: blur(6px); transition: border-color .3s, box-shadow .3s; }
+.card:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.card .k { display: flex; align-items: center; gap: 7px; font-size: 10.5px; font-weight: 600; letter-spacing: 1.8px; text-transform: uppercase; }
+.card .k i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.card .n { font-family: var(--display); font-size: 27px; line-height: 1.05; margin-top: 4px; }
+.card .n span { font-family: var(--body); font-size: 11px; letter-spacing: 1.6px; color: var(--muted); margin-left: 6px; font-weight: 600; }
+.card .s { font-size: 9.5px; letter-spacing: 1.2px; color: var(--muted); text-transform: uppercase; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.card .busy { display: none; margin-top: 7px; font-size: 10.5px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; border-radius: 8px; padding: 4px 8px; }
+.card.active { box-shadow: 0 0 0 1px var(--hue), 0 0 26px -4px var(--hue); border-color: var(--hue); }
+.card.active .busy { display: inline-block; color: var(--hue); background: color-mix(in srgb, var(--hue) 14%, transparent); }
+.card.sel { border-color: var(--gold); }
+.card.brain { min-width: 0; text-align: center; }
+.tag { position: absolute; transform: translate(-50%, -100%); font-size: 9.5px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; white-space: nowrap;
+       background: rgba(10, 14, 22, .92); border: 1px solid var(--hue); color: var(--text); border-radius: 6px; padding: 2px 6px; pointer-events: none; }
+.tag.off { border-style: dashed; color: var(--muted); }
+.legend { position: absolute; left: 14px; bottom: 12px; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 11px; color: var(--muted); pointer-events: none; max-width: calc(100% - 90px); }
+.legend b { color: var(--text); font-weight: 500; }
+.zoom { position: absolute; right: 12px; bottom: 12px; display: grid; gap: 8px; }
+.zoom button, .ctl button { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-size: 18px; cursor: pointer; }
+.zoom button:hover, .ctl button:hover { border-color: var(--gold); }
+button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+aside { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 18px; overflow: auto; min-height: 0; }
+aside h2 { font-family: var(--display); font-weight: 400; font-size: 26px; margin: 2px 0 2px; text-wrap: balance; }
+aside .eyebrow { font-size: 11px; letter-spacing: 1.8px; text-transform: uppercase; color: var(--muted); font-weight: 600; display: flex; gap: 8px; align-items: center; }
+aside .eyebrow i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 14px 0; }
+.stat { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.stat b { display: block; font-family: var(--display); font-weight: 400; font-size: 30px; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 10.5px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.agent { border-top: 1px solid var(--line); padding: 11px 0; display: grid; gap: 4px; }
+.agent .nm { font-weight: 600; font-size: 13.5px; }
+.agent .rl { color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.agent .ch { display: flex; flex-wrap: wrap; gap: 5px; }
+.agent .ch em { font-style: normal; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; font-weight: 600; border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; color: var(--muted); }
+.agent .ch em.pro { color: var(--gold); border-color: color-mix(in srgb, var(--gold) 45%, transparent); }
+.agent .ch em.nb { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.agent .ch em.new { color: #7fb4ff; border-color: #2c4a7a; }
+.agent.off .nm { color: var(--muted); }
+.back { background: none; border: 0; color: var(--gold); font: inherit; font-size: 12px; cursor: pointer; padding: 0; letter-spacing: 1px; text-transform: uppercase; font-weight: 600; }
+.prose { color: #c4ccda; line-height: 1.55; font-size: 13.5px; max-width: 62ch; }
+#how { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 12px 16px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 18px; align-items: center; }
+.ctl { display: flex; gap: 8px; align-items: center; }
+.ctl button.play { width: 48px; height: 48px; background: var(--gold); color: #1b1404; border-color: var(--gold); font-size: 16px; }
+.steps { position: relative; display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+.steps button { flex: 0 0 auto; border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 10px; padding: 6px 10px; font: inherit; font-size: 11.5px; cursor: pointer; white-space: nowrap; }
+.steps button b { font-family: var(--mono); font-weight: 500; margin-right: 6px; color: var(--text); }
+.steps button.on { border-color: var(--gold); color: var(--text); background: color-mix(in srgb, var(--gold) 10%, transparent); }
+.steps button.done b { color: var(--gold); }
+.caption { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; min-height: 40px; }
+.caption h3 { font-family: var(--display); font-weight: 400; font-size: 21px; margin: 0; }
+.caption p { margin: 0; color: #c4ccda; font-size: 13.5px; line-height: 1.5; flex: 1 1 380px; }
+@media (max-width: 980px) {
+  #app { height: auto; }
+  main { grid-template-columns: minmax(0, 1fr); }
+  #stage { height: 64vh; }
+  aside { max-height: none; }
+  #how { grid-template-columns: minmax(0, 1fr); }
+  .caption { grid-column: 1; }
+  .note { margin-left: 0; }
+}
+@media (max-width: 600px) {
+  header h1 { font-size: 24px; }
+  .card { min-width: 0; padding: 5px 8px; }
+  .card .n { font-size: 20px; }
+  .card .s, .card.active .busy { display: none; }
+  .legend { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .card { transition: none; } }
+</style>
+
+<div id="app">
+  <header>
+    <h1>AERI Research Office <small>V42</small></h1>
+    <div class="conn"><span class="dot"></span> Connected to
+      <span id="modelchips"></span><span class="chip">Gemini Notebook</span><span class="chip">NSF Awards API</span>
+    </div>
+    <div class="conn">Engine <span class="chip">n8n workflow v42</span></div>
+    <button class="readbtn" id="readme" aria-label="Read me: how this works">Read me</button>
+    <span class="chip" id="live" hidden></span>
+    <div class="note" id="mode">3D model of the real workflow file. The step player is a walk-through, not a live run.</div>
+  </header>
+  <main>
+    <section id="stage" aria-label="Isometric office: one room per department">
+      <canvas id="c"></canvas>
+      <div id="labels"></div>
+      <div class="legend"><span><b>Person at a desk</b> = AI agent</span><span><b>Lit screen</b> = working this step</span><span><b>Rack</b> = 4 scripts</span><span><b>Gold desk</b> = the researcher</span><span>Drag to turn · scroll to zoom</span></div>
+      <div class="zoom"><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button><button id="zhome" aria-label="Reset view">⌂</button></div>
+    </section>
+    <aside id="panel" aria-live="polite"></aside>
+  </main>
+  <section id="how" aria-label="How one version moves through the office">
+    <div class="ctl"><button class="play" id="play" aria-label="Play">▶</button><button id="prev" aria-label="Previous step">‹</button><button id="next" aria-label="Next step">›</button></div>
+    <div class="steps" id="steps"></div>
+    <div class="caption" id="caption"></div>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const DATA = {"depts": [{"id": "front", "name": "Front Desk + Library", "kicker": "Intake and sign-off", "hue": "#8fa3bf", "agents": [], "scripts": 11}, {"id": "eng", "name": "Engineering", "kicker": "Accuracy", "hue": "#5b9bf0", "agents": [{"name": "E1 Number Ledger", "role": "Traces every number in the text to a data cell or a shown calculation.", "tier": "Flash", "model": "Gemini 3.8 Flash", "notebook": false, "on": true, "status": "ran"}, {"name": "E2 Analysis Depth", "role": "Checks that each analysis goes deep enough to carry its claim.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": false, "on": true, "status": "ran"}, {"name": "E3 Fit + Form + Budget", "role": "Checks journal fit, format and the word and figure budget.", "tier": "Flash", "model": "Gemini 3.8 Flash", "notebook": false, "on": true, "status": "ran"}, {"name": "E4 Overlap", "role": "Finds text shared with the authors' earlier papers.", "tier": "Flash", "model": "Gemini 3.8 Flash", "notebook": false, "on": true, "status": "ran"}, {"name": "E5 Physics Bounds", "role": "Checks reported values against physical limits.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": false, "on": true, "status": "ran"}, {"name": "E2' Re-analysis", "role": "Redoes the analysis under the researcher's rulings.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": false, "on": true, "status": "ran"}, {"name": "E5' Physics", "role": "Re-checks the physics under the researcher's rulings.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": false, "on": true, "status": "ran"}, {"name": "Engineer Data (phase-correct)", "role": "Answers open data questions in each version round.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": false, "on": true, "status": "ran"}, {"name": "Unit Ledger + Figure-Text", "role": "Section by section: numbers and figures match the text.", "tier": "Flash", "model": "Gemini 3.8 Flash", "notebook": false, "on": true, "status": "ran"}, {"name": "E6 Data Re-ledger", "role": "Rebuilds every data finding from the listed data files only.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": false, "on": true, "status": "ran"}], "scripts": 13}, {"id": "crit", "name": "Critics", "kicker": "Rigor", "hue": "#f0955b", "agents": [{"name": "C1b Literature B + Xref", "role": "Reads notebook B and builds the cross-reference matrix.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": true, "on": true, "status": "ran"}, {"name": "C2 JGGE Reviewer", "role": "Reviews the paper the way a journal referee would.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": false, "on": true, "status": "ran"}, {"name": "C3a Voice Front", "role": "Checks voice and style in the first half.", "tier": "Flash", "model": "Gemini 3.8 Flash", "notebook": false, "on": true, "status": "ran"}, {"name": "C3b Voice Back + Captions", "role": "Checks voice in the second half and every caption.", "tier": "Flash", "model": "Gemini 3.8 Flash", "notebook": false, "on": true, "status": "ran"}, {"name": "C4 Flow + Functions", "role": "Checks what each paragraph does and how the argument flows.", "tier": "Flash", "model": "Gemini 3.8 Flash", "notebook": false, "on": true, "status": "ran"}, {"name": "C1' Literature", "role": "Re-checks the literature under the researcher's rulings.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": true, "on": true, "status": "ran"}, {"name": "Literature Agent (both notebooks)", "role": "Answers open questions from both notebooks in each version round.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": true, "on": true, "status": "ran"}, {"name": "Unit Reviewer + Physics + Section Lens", "role": "Section-level referee, physics and section-purpose check.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": false, "on": true, "status": "ran"}, {"name": "Unit Voice + Overlap", "role": "Section-level voice and overlap check.", "tier": "Flash", "model": "Gemini 3.8 Flash", "notebook": false, "on": true, "status": "ran"}, {"name": "C1a Literature A", "role": "Reads notebook A for support, gaps and contradictions.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": true, "on": true, "status": "ran"}, {"name": "Final Whole-Paper Critic", "role": "Reviews the assembled paper as one document.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": true, "on": true, "status": "ran"}, {"name": "C5 Notebook Pairs (agree / differ / extend)", "role": "Reads the notebooks against each other: agree, differ, extend.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": true, "on": true, "status": "new"}, {"name": "C6 Methodology Critic", "role": "Attacks the methods and the test design.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": true, "on": true, "status": "new"}, {"name": "C7 Figure Critic", "role": "Judges each figure (switched on when figure images are supplied).", "tier": "Flash", "model": "Gemini 3.8 Flash", "notebook": false, "on": false, "status": "new"}, {"name": "C8 Program Officer + Solicitation Analyst", "role": "Reads as the funder would (switched on for proposals).", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": true, "on": false, "status": "new"}, {"name": "C9 Investigator Personas", "role": "One persona per investigator (switched on for proposals).", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": true, "on": false, "status": "new"}], "scripts": 4}, {"id": "ver", "name": "Verification", "kicker": "Reliability", "hue": "#a58df0", "agents": [{"name": "V Verifier", "role": "Tries to disprove every finding before anyone acts on it.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": true, "on": true, "status": "ran"}, {"name": "K Completeness", "role": "Checks that nothing in the brief was missed.", "tier": "Flash", "model": "Gemini 3.8 Flash", "notebook": false, "on": true, "status": "ran"}, {"name": "Gate Critic (S1 S3 D14 F9)", "role": "Checks claim trace, section gate and depth before hand-over.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": false, "on": true, "status": "ran"}, {"name": "V-X Cross-Family Verifier", "role": "A second model family judges the same findings (switch).", "tier": "Second family", "model": "", "notebook": true, "on": false, "status": "new"}, {"name": "Verify Gem Findings", "role": "Keeps only the outside Gem findings that hold up.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": true, "on": true, "status": "new"}], "scripts": 13}, {"id": "studio", "name": "Writing Studio", "kicker": "The proposer", "hue": "#e8c65a", "agents": [{"name": "P Register + Plan", "role": "Writes the issue register, the revision plan and at most two questions.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": false, "on": true, "status": "ran"}, {"name": "R8 Assembler", "role": "Assembles the revised sections into one paper.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": false, "on": true, "status": "ran"}, {"name": "P Unit Rewrite", "role": "Rewrites one section per round.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": false, "on": true, "status": "ran"}, {"name": "P Version Edit", "role": "Writes the next version, cutting first.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": false, "on": true, "status": "ran"}], "scripts": 29}, {"id": "gem", "name": "Outside Review", "kicker": "Gemini Gem", "hue": "#4fd39a", "agents": [{"name": "Outside Reviewer Gem (Gemini, API twin)", "role": "Outside review grounded in funded awards and the researcher's rulings.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": false, "on": true, "status": "new"}], "scripts": 3}, {"id": "evolve", "name": "Evolve Lab", "kicker": "Rules + team", "hue": "#5fd0d6", "agents": [{"name": "EVOLVE S1", "role": "Writes the next rule set and reshapes the team after the S1 step.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": false, "on": true, "status": "ran"}, {"name": "EVOLVE S2", "role": "Writes the next rule set and reshapes the team after the S2 step.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": false, "on": true, "status": "ran"}, {"name": "EVOLVE S3", "role": "Writes the next rule set and reshapes the team after the S3 step.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": false, "on": true, "status": "ran"}, {"name": "EVOLVE E6", "role": "Writes the next rule set and reshapes the team after the E6 step.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": false, "on": true, "status": "ran"}, {"name": "EVOLVE R0.5", "role": "Writes the next rule set and reshapes the team after the R0.5 step.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": false, "on": true, "status": "ran"}, {"name": "EVOLVE Version", "role": "Writes the next rule set and reshapes the team after the Version step.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": false, "on": true, "status": "ran"}, {"name": "EVOLVE Unit", "role": "Writes the next rule set and reshapes the team after the Unit step.", "tier": "Pro", "model": "Gemini 3.1 Pro preview", "notebook": false, "on": true, "status": "ran"}], "scripts": 2}, {"id": "you", "name": "Researcher's Office", "kicker": "Decides every release", "hue": "#fdb719", "agents": [], "scripts": 12}], "brainScripts": 7, "humanGates": 2, "scriptDept": {"Start": "front", "Inputs + RULEBOOK v22": "front", "Merge S1 Engineers": "eng", "Merge S2 Critics": "crit", "Merge S3": "ver", "Merge R0.5": "eng", "Merge Version Round": "studio", "Merge Unit Critics": "studio", "Collect S1": "eng", "Apply EVOLVE S1": "eng", "Pack R0 Critics": "crit", "Collect S2": "crit", "Apply EVOLVE S2": "ver", "Pack S3": "ver", "Dedup Register + Dry Check": "ver", "Dry?": "ver", "Apply EVOLVE S3": "studio", "Pack E6": "studio", "Collect E6": "studio", "Apply EVOLVE E6": "studio", "Pack Proposer R0": "studio", "Gate 1 Package": "you", "HUMAN GATE 1": "you", "Apply Author Rulings": "you", "Pack R0.5": "eng", "Collect R0.5": "eng", "Apply EVOLVE R0.5": "eng", "Build Units R1-R7": "eng", "Pack Assembly": "studio", "Apply Assembly": "studio", "Collect Final Critic": "studio", "Pack Version Round": "studio", "Pack Unit Round": "studio", "Apply Unit Draft": "studio", "Loop Units": "studio", "Collect Version Round": "studio", "Apply Edit (new version)": "studio", "Exit Gate Scripts": "ver", "Exit Decision": "ver", "Ready?": "ver", "Author Review Package": "you", "AUTHOR REVIEW of version": "you", "Apply Author Review": "you", "Approved?": "you", "FINAL OUTPUT (canonical)": "front", "Pack EVOLVE Author": "evolve", "Apply EVOLVE Version": "evolve", "Score Round": "studio", "Unit Pass?": "studio", "Pack EVOLVE Unit": "studio", "Apply EVOLVE Unit": "studio", "Rounds Left?": "studio", "Escalation Package": "studio", "Unit Escalation (manual fix / author item)": "studio", "Apply Escalation": "studio", "Project Setup": "front", "Load Researcher Rulings (library)": "front", "Rulings + Library -> Rulebook": "front", "Deep Research -> core notebook (start)": "brain", "Deep Research (wait + import)": "brain", "Notebook Plan (one item per notebook)": "brain", "Studio: Mind Map (each notebook)": "brain", "Studio: Briefing Doc (each notebook)": "brain", "Notebook Briefing (cited, inline)": "brain", "Briefings -> Every Critic's Brief": "brain", "Wait: S1 Engineers + Notebook Briefings": "crit", "Plan Citation + Quote Checks": "ver", "Notebook Sources (list)": "ver", "Pick Cited Sources": "ver", "Source Text": "ver", "Match Quotes -> Register": "ver", "Plan Citation + Quote Checks (R0.5)": "eng", "Notebook Sources (list) (R0.5)": "eng", "Pick Cited Sources (R0.5)": "eng", "Source Text (R0.5)": "eng", "Match Quotes -> Register (R0.5)": "eng", "Plan Citation + Quote Checks (version)": "studio", "Notebook Sources (list) (version)": "studio", "Pick Cited Sources (version)": "studio", "Source Text (version)": "studio", "Match Quotes -> Register (version)": "studio", "Studio: Audio Overview before Gate 1": "you", "Studio: Video Overview before Author Review": "you", "Studio: Audio Overview before Author Review": "you", "Researcher Notes -> Rules + Decision Log (Gate 1)": "you", "Researcher Notes -> Rules + Decision Log (Review)": "you", "Award Queries (phrases x pages)": "gem", "Funded Awards (NSF public API)": "gem", "Awards -> Gem Knowledge": "gem", "Library Export (rules, rulings, log, Gem packs)": "front", "Library Files": "front", "Write to Library": "front", "Studio Team Materials Plan": "front", "Studio: Slides, Infographic, Study Guide, FAQ": "front"}, "source": "file", "models": ["Gemini 3.1 Pro preview", "Gemini 3.8 Flash"], "totals": {"agents": 43, "work": 137, "notebookLanes": 12}};
+const D = Object.fromEntries(DATA.depts.map(d => [d.id, d]));
+document.getElementById('modelchips').innerHTML = (DATA.models || []).map(m => `<span class="chip">${m}</span> `).join('');
+const BRAIN = { id: 'brain', name: 'The Brain', kicker: 'Notebooks · rulings · rule set', hue: '#9fd3ff' };
+// where each department sits on the floor (world units); the Brain is the centre
+const POS = { crit: [-4, -21], ver: [19, -14], studio: [24, 6], gem: [13, 22], you: [-3, 24], evolve: [-20, 16], front: [-28, 1], eng: [-24, -14], brain: [0, 0] };
+const STEPS = [
+  ['Intake', ['front', 'brain'], [['front', 'brain']], "Configuration, notebooks and the governing instructions are set. The researcher's standing rulings load and bind every role."],
+  ['Engineers check accuracy', ['eng', 'evolve'], [['brain', 'eng'], ['eng', 'evolve']], 'Five engineers check numbers, analysis depth, fit, overlap and physics against the data. An evolve step then tightens the rules.'],
+  ['Critics review', ['crit', 'brain'], [['eng', 'crit'], ['brain', 'crit']], "Critic lanes cover literature, the referee's view, voice, flow and methods. Literature lanes answer only from the project's Gemini notebooks."],
+  ['Citation + quote check', ['ver'], [['crit', 'ver']], "A script matches every cited passage to the notebook's own text. A finding that rests on an unmatched quote is dropped and logged."],
+  ['Verify + completeness', ['ver', 'evolve'], [['ver', 'evolve']], 'The verifier tries to disprove each finding before anyone acts on it; a completeness check makes sure nothing was missed.'],
+  ['Data re-ledger + plan', ['eng', 'studio'], [['ver', 'eng'], ['eng', 'studio']], 'E6 rebuilds every data finding from the data files. The proposer writes one register, one plan and at most two questions.'],
+  ['Gate 1: researcher decides', ['you'], [['studio', 'you'], ['brain', 'you']], 'The researcher accepts, rejects or annotates each item, after an audio overview of the literature. Every ruling becomes a binding rule.'],
+  ['Re-analysis under rulings', ['eng', 'crit', 'evolve'], [['you', 'eng'], ['you', 'crit'], ['eng', 'evolve']], "Data, physics and literature are checked again under the researcher's rulings."],
+  ['Section loop R1-R7', ['studio', 'eng', 'crit'], [['studio', 'eng'], ['studio', 'crit'], ['crit', 'studio']], 'Each section is rewritten in turn, up to three rounds, with section-level critics after every round.'],
+  ['Assembly + whole-paper critic', ['studio', 'crit'], [['studio', 'crit']], 'R8 assembles the sections; a whole-paper critic reads the result as one document.'],
+  ['Version round', ['eng', 'crit', 'studio'], [['eng', 'studio'], ['crit', 'studio'], ['brain', 'crit']], 'Every open finding is resolved with data or literature before the author sees the version.'],
+  ['Outside reviewer Gem', ['gem', 'ver'], [['gem', 'ver'], ['ver', 'studio']], 'A Gemini Gem grounded in funded NSF awards reviews the version. A verifier keeps only the findings that hold.'],
+  ['Exit gates', ['ver'], [['studio', 'ver']], 'Overlap, citations, sentence length and claim trace are checked by script before hand-over.'],
+  ['Researcher signs off', ['you', 'evolve'], [['ver', 'you'], ['you', 'evolve']], 'Nothing is released without sign-off. If the version is not approved, the evolve step writes the next rule set and the round runs again.'],
+  ['Library + team materials', ['front', 'brain'], [['you', 'front'], ['front', 'brain']], 'The canonical version goes out. Rules, rulings, the decision log and a Gem pack per role go to the library for the next project.'],
+];
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ---------------------------------------------------------------- scene
+const canvas = document.getElementById('c'), stage = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x0b1019, 140, 260);
+const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, -200, 400);
+let az = Math.PI / 4, zoom = 1, targetAz = az, zoomGoal = 1;
+const look = new THREE.Vector3(), lookGoal = new THREE.Vector3();
+const EL = Math.atan(1 / Math.SQRT2);
+function placeCam() {
+  const r = 100; cam.position.set(look.x + r * Math.cos(EL) * Math.sin(az), look.y + r * Math.sin(EL), look.z + r * Math.cos(EL) * Math.cos(az)); cam.lookAt(look);
+}
+scene.add(new THREE.HemisphereLight(0x9fb4d8, 0x0b1019, .55));
+const sun = new THREE.DirectionalLight(0xfff2dc, .9); sun.position.set(-30, 50, 25); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, near: 1, far: 140 }); scene.add(sun);
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ color: 0x0d1420, roughness: 1 }));
+floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+const grid = new THREE.GridHelper(120, 60, 0x1a2538, 0x141d2c); grid.position.y = .01; scene.add(grid);
+
+const col = h => new THREE.Color(h);
+const mat = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: .7, metalness: .05 }, o));
+function box(w, h, d, m, x, y, z, parent) {
+  const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); b.castShadow = b.receiveShadow = true; parent.add(b); return b;
+}
+const rooms = {};   // id -> {group, screens[], leds[], size, people[]}
+const deskMat = mat(0xd6dce6), deskSide = mat(0x9aa4b4), chairMat = mat(0x232b39), rackMat = mat(0x1b2230, { metalness: .3 });
+
+function buildRoom(d) {
+  const g = new THREE.Group(); const [px, pz] = POS[d.id]; g.position.set(px, 0, pz); scene.add(g);
+  const people = d.agents.map(a => ({ a })); if (d.id === 'you') people.push({ human: true, label: 'Researcher' }); if (d.id === 'front') people.push({ reception: true, label: 'Reception' });
+  const n = people.length, racks = Math.max(1, Math.ceil(d.scripts / 4));
+  const cols = Math.max(2, Math.ceil(Math.sqrt(n * 1.5))), rows = Math.max(1, Math.ceil(n / cols));
+  const rackCols = Math.ceil(racks / Math.max(1, rows * 2));
+  const big = d.id === 'you' || d.id === 'front';      // the researcher's office and the front desk get room to breathe
+  const W = Math.max(cols * 2.6 + 1.6 + rackCols * 1.5, big ? 9 : 0), Dp = Math.max(rows * 2.8 + 1.6, Math.min(racks, rows * 2) * 1.3 + 1.6, big ? 7 : 0);
+  const hue = col(d.hue);
+  const slabCol = hue.clone().lerp(col('#0b1019'), .72);
+  box(W, .5, Dp, mat(slabCol, { roughness: .9 }), 0, .25, 0, g);
+  const rim = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(W, .5, Dp)), new THREE.LineBasicMaterial({ color: hue, transparent: true, opacity: .55 }));
+  rim.position.y = .25; g.add(rim); g.userData.rim = rim;
+  // floor tiles
+  const tiles = new THREE.GridHelper(Math.max(W, Dp), Math.round(Math.max(W, Dp) / 1.3), hue.clone().multiplyScalar(.35), hue.clone().multiplyScalar(.22));
+  tiles.scale.set(W / Math.max(W, Dp), 1, Dp / Math.max(W, Dp)); tiles.position.y = .51; g.add(tiles);
+  const screens = [], tags = [];
+  people.forEach((p, k) => {
+    const c = k % cols, r = Math.floor(k / cols);
+    const x = -W / 2 + 1.6 + c * 2.6, z = -Dp / 2 + 1.4 + r * 2.8;
+    const gold = p.human, on = p.a ? p.a.on : true;
+    box(1.7, .06, .85, gold ? mat(0xf2c14e, { metalness: .4, roughness: .35 }) : deskMat, x, 1.25, z, g);
+    box(1.6, .7, .75, gold ? mat(0xb8862b) : deskSide, x, .88, z, g);
+    const scrM = new THREE.MeshStandardMaterial({ color: 0x0b0f17, emissive: gold ? col('#fdb719') : hue, emissiveIntensity: .12 });
+    box(1.0, .62, .06, scrM, x, 1.62, z - .3, g); box(.12, .3, .06, chairMat, x, 1.4, z - .3, g);
+    box(.7, .5, .7, chairMat, x, .75, z + .85, g);
+    const skin = gold ? 0xf2c14e : on ? hue.clone().lerp(col('#ffffff'), .35) : col('#4a5262');
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(.27, .36, .8, 14), mat(skin, { transparent: !on, opacity: on ? 1 : .45 }));
+    body.position.set(x, 1.4, z + .85); body.castShadow = true; g.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(.24, 16, 12), mat(gold ? 0x7a5a1a : 0x2b3140, { transparent: !on, opacity: on ? 1 : .45 }));
+    head.position.set(x, 2.05, z + .85); head.castShadow = true; g.add(head);
+    screens.push({ m: scrM, on, gold });
+    tags.push({ pos: new THREE.Vector3(px + x, 2.7, pz + z), text: p.a ? p.a.name : p.label, off: !on });
+  });
+  const leds = [];
+  for (let k = 0; k < racks; k++) {
+    const per = Math.max(1, rows * 2), cc = Math.floor(k / per), rr = k % per;
+    const x = W / 2 - .9 - cc * 1.4, z = -Dp / 2 + .9 + rr * 1.3;
+    const h = 1.8 + (k % 3) * .25;
+    box(.95, h, .95, rackMat, x, .5 + h / 2, z, g);
+    for (let L = 0; L < 3; L++) {
+      const lm = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: L === 1 ? col('#4fd39a') : hue, emissiveIntensity: .8 });
+      box(.05, .07, .6, lm, x + .5, .9 + L * .45, z, g); leds.push(lm);
+    }
+  }
+  rooms[d.id] = { g, screens, leds, tags, W, D: Dp, hue: d.hue, corners: [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => new THREE.Vector3(px + a * W / 2, .5, pz + b * Dp / 2)) };
+}
+DATA.depts.forEach(buildRoom);
+
+// the Brain: platform + rotating network of notebook passages
+const brain = new THREE.Group(); scene.add(brain);
+const plat = new THREE.Mesh(new THREE.CylinderGeometry(6, 6.4, .6, 48), mat(0x10233a, { roughness: .8 })); plat.position.y = .3; plat.receiveShadow = true; brain.add(plat);
+const ring = new THREE.Mesh(new THREE.TorusGeometry(6.05, .09, 8, 96), new THREE.MeshBasicMaterial({ color: 0x9fd3ff })); ring.rotation.x = Math.PI / 2; ring.position.y = .62; brain.add(ring);
+const net = new THREE.Group(); net.position.y = 4.4; brain.add(net);
+{
+  const pts = [], rnd = (s => () => (s = (s * 16807) % 2147483647) / 2147483647)(7);
+  for (let i = 0; i < 140; i++) { const u = rnd() * 2 - 1, t = rnd() * Math.PI * 2, r = 3.6 * Math.cbrt(rnd() * .6 + .4);
+    pts.push(new THREE.Vector3(r * Math.sqrt(1 - u * u) * Math.cos(t), r * u * .8, r * Math.sqrt(1 - u * u) * Math.sin(t))); }
+  const lines = [];
+  pts.forEach((p, i) => { pts.map((q, j) => [p.distanceTo(q), j]).sort((a, b) => a[0] - b[0]).slice(1, 3).forEach(([, j]) => lines.push(p, pts[j])); });
+  net.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(lines), new THREE.LineBasicMaterial({ color: 0x6fb6ff, transparent: true, opacity: .45 })));
+  net.add(new THREE.Points(new THREE.BufferGeometry().setFromPoints(pts), new THREE.PointsMaterial({ color: 0xe8f4ff, size: .22 })));
+}
+rooms.brain = { corners: [new THREE.Vector3(0, 7.6, 0)], hue: BRAIN.hue, screens: [], leds: [], tags: [] };
+
+// paths between rooms (every pair used by a step), drawn as faint dotted arcs
+const centre = id => new THREE.Vector3(POS[id][0], 1, POS[id][1]);
+const paths = {};
+STEPS.forEach(s => s[2].forEach(([a, b]) => {
+  const k = a + '>' + b; if (paths[k]) return;
+  const A = centre(a), B = centre(b), M = A.clone().add(B).multiplyScalar(.5); M.y = 6 + A.distanceTo(B) * .12;
+  const curve = new THREE.QuadraticBezierCurve3(A, M, B);
+  const ln = new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getPoints(60)), new THREE.LineDashedMaterial({ color: 0x3a4a66, dashSize: .5, gapSize: .45, transparent: true, opacity: .55 }));
+  ln.computeLineDistances(); scene.add(ln);
+  paths[k] = { curve, ln };
+}));
+const packets = [];
+for (let i = 0; i < 12; i++) {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(.32, 14, 10), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  m.visible = false; scene.add(m); packets.push(m);
+}
+
+// ---------------------------------------------------------------- department cards + desk tags (HTML over the canvas)
+const labels = document.getElementById('labels');
+const cards = {};
+function cardFor(d) {
+  const el = document.createElement('div'); el.className = 'card'; el.tabIndex = 0; el.setAttribute('role', 'button');
+  el.style.setProperty('--hue', d.hue);
+  if (d.id === 'brain') {
+    el.classList.add('brain');
+    el.innerHTML = `<div class="k"><i style="background:${d.hue}"></i>The Brain</div><div class="s">${DATA.brainScripts} notebook steps · ${DATA.totals.notebookLanes} lanes wired</div><div class="busy">Feeding the rooms</div>`;
+  } else {
+    const on = d.agents.filter(a => a.on).length, pro = d.agents.filter(a => a.tier === 'Pro').length, nb = d.agents.filter(a => a.notebook).length;
+    const big = d.id === 'you' ? `${DATA.humanGates}<span>GATES</span>` : d.id === 'front' ? `${d.scripts}<span>SCRIPTS</span>` : `${d.agents.length}<span>AGENTS</span>`;
+    const sub = d.id === 'you' ? `${d.scripts} scripts · you decide` : d.id === 'front' ? 'intake · library · team materials'
+      : [`${d.scripts} scripts`, pro ? `${pro} Pro` : '', nb ? `${nb} notebook` : '', on < d.agents.length ? `${d.agents.length - on} off` : ''].filter(Boolean).join(' · ');
+    el.innerHTML = `<div class="k"><i style="background:${d.hue}"></i>${d.name}</div><div class="n">${big}</div><div class="s">${sub}</div><div class="busy">Working on this step</div>`;
+  }
+  el.onclick = () => select(d.id); el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(d.id); } };
+  labels.appendChild(el); cards[d.id] = el;
+}
+DATA.depts.forEach(cardFor); cardFor(BRAIN);
+let tagEls = [];
+const SHORT = { 'Unit Reviewer + Physics + Section Lens': 'Unit referee', 'Unit Voice + Overlap': 'Unit voice', 'Unit Ledger + Figure-Text': 'Unit ledger',
+  'Final Whole-Paper Critic': 'Whole paper', 'Literature Agent (both notebooks)': 'Lit agent', 'Engineer Data (phase-correct)': 'Eng data', 'Gate Critic (S1 S3 D14 F9)': 'Gate critic',
+  'Verify Gem Findings': 'Gem check', 'Outside Reviewer Gem (Gemini, API twin)': 'Gem', 'R8 Assembler': 'R8', 'P Register + Plan': 'P plan', 'P Unit Rewrite': 'P unit',
+  'P Version Edit': 'P version', 'V-X Cross-Family Verifier': 'V-X' };
+function showTags(id) {
+  tagEls.forEach(t => t.el.remove()); tagEls = [];
+  (rooms[id]?.tags || []).forEach(t => {
+    const el = document.createElement('div'); el.className = 'tag' + (t.off ? ' off' : ''); el.style.setProperty('--hue', rooms[id].hue);
+    el.textContent = SHORT[t.text] || (t.text.startsWith('EVOLVE') ? t.text : t.text.split(' ')[0]); labels.appendChild(el); tagEls.push({ el, pos: t.pos });
+  });
+}
+
+// ---------------------------------------------------------------- side panel
+const panel = document.getElementById('panel');
+let selected = null;
+function overview() {
+  const T = DATA.totals;
+  panel.innerHTML = `<div class="eyebrow">The whole office</div><h2>One version, eight rooms</h2>
+  <p class="prose">Each room is a department of the review engine. People at desks are the AI agents in the n8n workflow; racks stand for its scripts.
+  The centre holds the project's Gemini notebooks, the researcher's rulings and the current rule set. The researcher's office decides every release.</p>
+  <div class="stats"><div class="stat"><b>${T.agents}</b><span>AI agents</span></div><div class="stat"><b>${T.work}</b><span>work nodes</span></div>
+  <div class="stat"><b>${T.notebookLanes}</b><span>notebook lanes</span></div><div class="stat"><b>${DATA.humanGates}</b><span>researcher gates</span></div></div>
+  <p class="prose">Press play below to follow one version from intake to sign-off, or pick a room to see who works there.</p>
+  <button class="readbtn" id="readme2">Read me: how this works</button>`;
+  document.getElementById('readme2').onclick = readme;
+}
+const README = "<div class=\"eyebrow\">Read me first</div><h2>AERI Research Ecosystem</h2><p><strong>A supervised review engine for research manuscripts and proposals, built in n8n.</strong> 43 AI agents check a draft against the data, the physics and the literature. The researcher decides every change and every release. This copy is set up for the 7EMP D1 manuscript.</p><h3>How one version moves through the engine</h3><ol><li><strong>Intake.</strong> Configuration, Gemini notebooks, governing instructions and the researcher&#x27;s standing rulings are loaded.</li><li><strong>Engineers (accuracy).</strong> Numbers, analysis depth, journal fit, overlap with earlier papers, physical limits.</li><li><strong>Critics (rigor).</strong> Literature (answered only from the project&#x27;s notebooks), referee view, voice, flow, methods.</li><li><strong>Citation and quote check.</strong> A script matches every cited passage to the source text.</li><li><strong>Verification.</strong> A verifier tries to disprove each finding; a completeness check looks for anything missed.</li><li><strong>Plan.</strong> Data findings are rebuilt from the data files; the proposer writes one issue register, one plan and at most two questions.</li><li><strong>Gate 1: the researcher decides.</strong> Accept, reject or annotate each item. Every ruling becomes a binding rule.</li><li><strong>Re-analysis</strong> of data, physics and literature under those rulings.</li><li><strong>Section loop R1-R7.</strong> Each section is revised in turn, up to three rounds, with section-level critics.</li><li><strong>Assembly</strong> and a whole-paper critic.</li><li><strong>Version round.</strong> Open findings are resolved with data or literature before the author sees them.</li><li><strong>Outside reviewer.</strong> A Gemini Gem grounded in funded NSF awards reviews the version; only verified findings are kept.</li><li><strong>Exit gates by script.</strong> Overlap, citations, sentence length and claim trace.</li><li><strong>Researcher signs off.</strong> If not approved, the evolve step tightens the rules and the round runs again.</li><li><strong>Library.</strong> Rules, rulings, the decision log and one Gem pack per role are kept for the next project.</li></ol><h3>Three safeguards</h3><ul><li>A data claim must cite a data cell or show its calculation, or it is discarded.</li><li>A finding is acted on only after an independent attempt to disprove it.</li><li>No version is released without the researcher&#x27;s approval.</li></ul><h3>Models and status</h3><ul><li><strong>Gemini 3.1 Pro</strong> for deep-reasoning lanes, <strong>Gemini 3.8 Flash</strong> for mechanical lanes, <strong>Gemini Notebook</strong> for literature. A second-family verifier is available and switched off.</li><li>✅ marks parts that ran on the 7EMP manuscript (versions v22 to v35, on Claude models). 🔷 marks parts that are new and set up for the Gemini pilot. The full loop has not yet run end to end on Gemini.</li></ul><h3>Reading the canvas</h3><p>Three rows of rooms, read left to right, one room per stage. Colour shows what a room protects: blue accuracy (engineers), orange rigor (critics), purple reliability (verification), yellow the draft (proposer), red the researcher&#x27;s decisions, green Gemini Notebook and Gems, grey set-up and library. Each row has its own Gemini model boxes underneath.</p><h3>3D office view</h3><p>Open <strong>https://YOUR-N8N-ADDRESS/webhook/aeri-office</strong> while this workflow is active. The office shows the same 43 agents in eight departments. During a run, the room doing the work lights up and the researcher&#x27;s desk turns gold when a gate is waiting. It shows names, counts and the current step only, never manuscript text or data.</p><h3>Editing</h3><p>The office is rebuilt from this workflow every time it opens. Rename, add or switch off an agent, or change the model in an AI Model box, then reload the office. Each agent&#x27;s <strong>Notes</strong> (node settings) hold two lines the office reads: <code>Role:</code> the one-sentence job shown in the office, and <code>Room:</code> its department (Engineering, Critics, Verification, Writing Studio, Outside Review, Evolve Lab).</p><h3>Set-up (once)</h3><ol><li><strong>Gemini key:</strong> aistudio.google.com, then Get API key. Add it as the credential on every AI Model box.</li><li><strong>n8n key:</strong> Settings, then n8n API, then Create an API key. Add it to <strong>Read Runs</strong> and <strong>Read Workflow</strong> as Header Auth (name <code>X-N8N-API-KEY</code>).</li><li>Switch the workflow to <strong>Active</strong>. Start a run from <strong>Start</strong>.</li></ol>";
+function readme() {
+  selected = null; focusOn(null); Object.values(cards).forEach(el => el.classList.remove('sel')); showTags(null);
+  panel.innerHTML = `<button class="back" id="bk">← Whole office</button><div class="guide">${README}</div>`;
+  document.getElementById('bk').onclick = overview; panel.scrollTop = 0;
+}
+document.getElementById('readme').onclick = readme;
+function focusOn(id) {
+  if (id && POS[id]) { lookGoal.set(POS[id][0], 0, POS[id][1]); zoomGoal = id === 'crit' ? 1.9 : 2.3; } else { lookGoal.set(0, 0, 0); zoomGoal = 1; }
+}
+function select(id) {
+  selected = id; focusOn(id); Object.entries(cards).forEach(([k, el]) => el.classList.toggle('sel', k === id)); showTags(id);
+  if (id === 'brain') {
+    panel.innerHTML = `<button class="back" id="bk">← Whole office</button><div class="eyebrow" style="margin-top:12px"><i style="background:${BRAIN.hue}"></i>${BRAIN.kicker}</div><h2>The Brain</h2>
+    <p class="prose">Two to five Gemini notebooks per project: core literature, an independent comparison set, the group's own earlier work and the sponsors' solicitations. The researcher chooses every source.</p>
+    <p class="prose">Before diagnosis each notebook gives a mind map and a briefing doc, and a cited briefing goes into every critic's brief. ${DATA.totals.notebookLanes} lanes query the notebooks directly; every quote they bring back is matched to the source by script.</p>
+    <p class="prose">The researcher's rulings file and the versioned rule set also live here, so every room works to the same rules.</p>`;
+  } else {
+    const d = D[id], on = d.agents.filter(a => a.on).length;
+    const list = d.agents.map(a => `<div class="agent${a.on ? '' : ' off'}"><div class="nm">${a.name}</div><div class="rl">${a.role}</div><div class="ch">
+      <em class="${a.tier === 'Pro' ? 'pro' : ''}">${a.tier === 'Second family' ? 'second-family model' : (a.model || a.tier)}</em>${a.notebook ? '<em class="nb">notebook</em>' : ''}
+      ${a.on ? '' : '<em>switched off</em>'}<em class="${a.status === 'new' ? 'new' : ''}">${a.status === 'new' ? 'new · Gemini pilot' : 'ran on 7EMP'}</em></div></div>`).join('');
+    const extra = id === 'you' ? `<p class="prose">Two gates: after the plan (Gate 1) and on every version. The researcher accepts, rejects or annotates; each ruling becomes a binding rule and goes to the decision log. Audio and video overviews of the literature come first.</p>`
+      : id === 'front' ? `<p class="prose">Intake sets the configuration, notebooks and governing instructions and loads the researcher's rulings. After sign-off the library keeps the rules, rulings, decision log and one Gem pack per role, and Studio turns the notebooks into slides, a study guide and an FAQ.</p>` : '';
+    panel.innerHTML = `<button class="back" id="bk">← Whole office</button><div class="eyebrow" style="margin-top:12px"><i style="background:${d.hue}"></i>${d.kicker}</div><h2>${d.name}</h2>
+    <div class="stats"><div class="stat"><b>${d.agents.length || (id === 'you' ? DATA.humanGates : 0)}</b><span>${d.agents.length ? 'agents' : id === 'you' ? 'gates' : 'agents'}</span></div><div class="stat"><b>${d.scripts}</b><span>scripts</span></div></div>${extra}${list}`;
+  }
+  document.getElementById('bk').onclick = () => { selected = null; focusOn(null); Object.values(cards).forEach(el => el.classList.remove('sel')); showTags(null); overview(); };
+}
+
+// ---------------------------------------------------------------- step player
+const stepsEl = document.getElementById('steps'), capEl = document.getElementById('caption'), playBtn = document.getElementById('play');
+let step = 0, playing = false, timer = null, stepT0 = performance.now();
+STEPS.forEach((s, i) => { const b = document.createElement('button'); b.innerHTML = `<b>${String(i + 1).padStart(2, '0')}</b>${s[0]}`; b.onclick = () => go(i, true); stepsEl.appendChild(b); });
+function go(i, user) {
+  step = (i + STEPS.length) % STEPS.length; stepT0 = performance.now();
+  [...stepsEl.children].forEach((b, k) => { b.classList.toggle('on', k === step); b.classList.toggle('done', k < step); });
+  const sb = stepsEl.children[step]; stepsEl.scrollTo({ left: sb.offsetLeft - stepsEl.clientWidth / 2 + sb.offsetWidth / 2, behavior: reduce ? 'auto' : 'smooth' });
+  const [t, act, flows, text] = STEPS[step];
+  capEl.innerHTML = `<h3>${String(step + 1).padStart(2, '0')} · ${t}</h3><p>${text}</p>`;
+  Object.entries(cards).forEach(([k, el]) => el.classList.toggle('active', act.includes(k)));
+  Object.entries(paths).forEach(([k, p]) => { const on = flows.some(([a, b]) => a + '>' + b === k);
+    p.ln.material.color.set(on ? (D[k.split('>')[0]]?.hue || BRAIN.hue) : 0x3a4a66); p.ln.material.opacity = on ? .95 : .35; });
+  Object.entries(rooms).forEach(([k, r]) => { r.screens.forEach(s => s.m.emissiveIntensity = act.includes(k) && s.on ? 1.6 : s.on ? .12 : .02);
+    if (r.g) r.g.userData.rim.material.opacity = act.includes(k) ? 1 : .4; });
+  if (user && playing) restart();
+}
+function restart() { clearInterval(timer); timer = setInterval(() => go(step + 1), 4200); }
+playBtn.onclick = () => { playing = !playing; playBtn.textContent = playing ? '❚❚' : '▶'; playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play'); playing ? restart() : clearInterval(timer); };
+document.getElementById('prev').onclick = () => go(step - 1, true);
+document.getElementById('next').onclick = () => go(step + 1, true);
+
+// ---------------------------------------------------------------- camera controls
+function fit() {
+  const w = stage.clientWidth, h = stage.clientHeight; renderer.setSize(w, h, false);
+  const span = (w < 700 ? 96 : 74) / zoom, a = w / h;
+  if (a >= 1) Object.assign(cam, { left: -span * a / 2, right: span * a / 2, top: span / 2, bottom: -span / 2 });
+  else Object.assign(cam, { left: -span / 2, right: span / 2, top: span / a / 2, bottom: -span / a / 2 });
+  cam.updateProjectionMatrix();
+}
+new ResizeObserver(fit).observe(stage);
+let drag = null;
+canvas.addEventListener('pointerdown', e => { drag = { x: e.clientX, az: targetAz, moved: false }; canvas.setPointerCapture(e.pointerId); canvas.style.cursor = 'grabbing'; });
+canvas.addEventListener('pointermove', e => { if (!drag) return; const dx = e.clientX - drag.x; if (Math.abs(dx) > 3) drag.moved = true; targetAz = drag.az - dx * .006; });
+canvas.addEventListener('pointerup', e => { canvas.style.cursor = 'grab'; if (drag && !drag.moved) pick(e); drag = null; });
+canvas.addEventListener('wheel', e => { e.preventDefault(); zoomGoal = Math.min(4, Math.max(.6, zoomGoal * (e.deltaY < 0 ? 1.12 : .89))); }, { passive: false });
+document.getElementById('zin').onclick = () => { zoomGoal = Math.min(4, zoomGoal * 1.25); };
+document.getElementById('zout').onclick = () => { zoomGoal = Math.max(.6, zoomGoal / 1.25); };
+document.getElementById('zhome').onclick = () => { targetAz = Math.PI / 4; focusOn(selected); };
+const ray = new THREE.Raycaster();
+function pick(e) {
+  const r = canvas.getBoundingClientRect(), v = new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1);
+  ray.setFromCamera(v, cam);
+  const hit = ray.intersectObjects([...Object.values(rooms).filter(r => r.g).map(r => r.g), brain], true)[0];
+  if (!hit) return;
+  let o = hit.object; while (o.parent && o.parent !== scene) o = o.parent;
+  const id = o === brain ? 'brain' : Object.keys(rooms).find(k => rooms[k].g === o); if (id) select(id);
+}
+
+// ---------------------------------------------------------------- frame loop
+const tmp = new THREE.Vector3();
+function scr(v) { tmp.copy(v).project(cam); return { x: (tmp.x + 1) / 2 * stage.clientWidth, y: (1 - tmp.y) / 2 * stage.clientHeight }; }
+function project(v, el, dy = 0) {
+  tmp.copy(v).project(cam);
+  const x = (tmp.x + 1) / 2 * stage.clientWidth, y = (1 - tmp.y) / 2 * stage.clientHeight + dy;
+  el.style.left = x + 'px'; el.style.top = y + 'px';
+}
+function frame(t) {
+  az += (targetAz - az) * .12; look.lerp(lookGoal, reduce ? 1 : .08);
+  if (Math.abs(zoomGoal - zoom) > .002) { zoom += (zoomGoal - zoom) * (reduce ? 1 : .1); fit(); }
+  placeCam();
+  if (!reduce) { net.rotation.y = t * .00015; ring.material.color.setHSL(.56, .8, .62 + .1 * Math.sin(t * .002)); }
+  Object.entries(rooms).forEach(([k, r]) => r.leds.forEach((m, i) => m.emissiveIntensity = reduce ? .8 : .45 + .55 * (Math.sin(t * .004 + i * 1.7) > .2 ? 1 : 0)));
+  // packets along the active flows
+  const flows = STEPS[step][2], ph = ((t - stepT0) / 1600) % 1;
+  packets.forEach((m, i) => {
+    const fi = i % 4, lane = Math.floor(i / 4), f = flows[fi];
+    if (!f) { m.visible = false; return; }
+    const p = paths[f[0] + '>' + f[1]]; const u = reduce ? .5 : (ph + lane / 3) % 1;
+    m.visible = true; m.position.copy(p.curve.getPoint(u)); m.material.color.set(D[f[0]]?.hue || BRAIN.hue);
+  });
+  // each card sits on the outer side of its room (away from the Brain), so the middle of the office stays clear
+  const bc = scr(new THREE.Vector3(0, 0, 0));
+  Object.entries(cards).forEach(([k, el]) => {
+    if (k === 'brain') { project(rooms.brain.corners[0], el, -4); el.style.transform = 'translate(-50%, -100%)'; return; }
+    const r = rooms[k], rc = scr(r.g.position);
+    let vx = rc.x - bc.x, vy = rc.y - bc.y; const L = Math.hypot(vx, vy) || 1; vx /= L; vy /= L;
+    const c = r.corners.map(scr).reduce((best, q) => ((q.x - rc.x) * vx + (q.y - rc.y) * vy) > best[0] ? [((q.x - rc.x) * vx + (q.y - rc.y) * vy), q] : best, [-1e9, null])[1];
+    el.style.left = c.x + 'px'; el.style.top = c.y + 'px';
+    el.style.transform = `translate(${-50 + 50 * vx}%, ${-50 + 50 * vy}%) translate(${14 * vx}px, ${14 * vy}px)`;
+  });
+  tagEls.forEach(t => project(t.pos, t.el));
+  renderer.render(scene, cam); requestAnimationFrame(frame);
+}
+placeCam(); fit(); overview(); go(0);
+// ---------------------------------------------------------------- live mode: when n8n serves this page, follow the real run
+const liveEl = document.getElementById('live'), modeEl = document.getElementById('mode');
+const served = location.protocol.startsWith('http') && location.pathname.includes('/webhook');
+if (DATA.source === 'live') modeEl.textContent = 'Rooms and agents read from the n8n workflow at ' + new Date(DATA.read).toLocaleTimeString() + '. Edit the workflow and reload to see changes.';
+let isLive = false;
+async function poll() {
+  let s;
+  try { const r = await fetch('aeri-office-status', { cache: 'no-store' }); if (!r.ok) throw new Error(r.status); s = await r.json(); }
+  catch (e) { s = { live: false, reason: 'The status link did not answer. Check that the AERI Office workflow is active.' }; }
+  liveEl.hidden = false;
+  if (!s.live) { isLive = false; liveEl.className = 'chip idle'; liveEl.textContent = 'Not following a run'; modeEl.textContent = s.reason + ' The step player shows a walk-through.'; return; }
+  if (!isLive && playing) playBtn.click();
+  isLive = true;
+  const label = { waiting: 'Live · waiting for the researcher', running: 'Live · running', success: 'Live · last run finished', error: 'Live · last run stopped with an error' }[s.status] || 'Live · ' + s.status;
+  liveEl.className = 'chip' + (s.status === 'waiting' ? ' wait' : ''); liveEl.textContent = label;
+  modeEl.textContent = 'Following the real n8n run. Current node: ' + s.node + '.';
+  if (s.step !== step) go(s.step);
+}
+if (served) { poll(); setInterval(poll, 5000); }
+const h0 = location.hash.slice(1); if (cards[h0]) select(h0); else if (h0 === 'readme') readme();
+requestAnimationFrame(frame);
+if (!reduce) setTimeout(() => { if (!playing && !isLive) playBtn.click(); }, 1800);
+</script>
+</body></html>
