@@ -1,5 +1,5 @@
 # READ ME FIRST · AERI Research Ecosystem
-**A supervised review engine for research manuscripts and proposals, built in n8n.** 43 AI agents check a draft against the data, the physics and the literature. The researcher decides every change and every release. This copy is set up for the 7EMP D1 manuscript.
+**A supervised review engine for research manuscripts and proposals, built in n8n.** 43 AI agents check a draft against the data, the physics and the literature. The researcher decides every change and every release. The same engine serves manuscripts, reviewer responses, proposals, funding strategies, white papers and briefings.
 
 ## How one version moves through the engine
 1. **Intake.** Configuration, Gemini notebooks, governing instructions and the researcher's standing rulings are loaded.
@@ -25,7 +25,7 @@
 
 ## Models and status
 - **Gemini Pro latest** (today Gemini 3.1 Pro) for deep-reasoning lanes and **Gemini Flash latest** (today Gemini 3.8 Flash) for mechanical lanes. Both names move to Google's newest model on release, so a new Gemini needs no edit. **Gemini Notebook** for literature. A second-family verifier is available and switched off.
-- ✅ marks parts that ran on the 7EMP manuscript (versions v22 to v35, on Claude models). 🔷 marks parts that are new and set up for the Gemini pilot. The full loop has not yet run end to end on Gemini.
+- ✅ marks parts already tested in a full manuscript revision (on Claude models; see Track record). 🔷 marks parts that are new and set up for the Gemini pilot. The full loop has not yet run end to end on Gemini.
 
 ## Reading the canvas
 Three rows of rooms, read left to right, one room per stage. Colour shows what a room protects: blue accuracy (engineers), orange rigor (critics), purple reliability (verification), yellow the draft (proposer), red the researcher's decisions, green Gemini Notebook and Gems, grey set-up and library. Each row has its own Gemini model boxes underneath.
@@ -35,6 +35,9 @@ Open **https://YOUR-N8N-ADDRESS/webhook/aeri-office** while this workflow is act
 
 ## Editing
 The office is rebuilt from this workflow every time it opens. Rename, add or switch off an agent, or change the model in an AI Model box, then reload the office. Each agent's **Notes** (node settings) hold two lines the office reads: `Role:` the one-sentence job shown in the office, and `Room:` its department (Engineering, Critics, Verification, Writing Studio, Outside Review, Evolve Lab).
+
+## Track record
+The engine revised the 7EMP energy-pile manuscript (D1) from version v22 to v35 on Claude models, 3-4 October 2026. The workflow file still carries that project's draft and data as its working example.
 
 ## Set-up (once)
 1. **Gemini key:** aistudio.google.com, then Get API key. Add it as the credential on every AI Model box.
